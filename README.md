@@ -17,7 +17,7 @@ A Python service that wraps various LLM providers (OpenAI, Anthropic, local, pri
 ## Prerequisites
 
 - Python 3.11+
-- PostgreSQL
+- PostgreSQL (external instance)
 - Redis (optional, for async operations)
 - Poetry (for dependency management)
 
@@ -34,29 +34,20 @@ A Python service that wraps various LLM providers (OpenAI, Anthropic, local, pri
    poetry install
    ```
 
-3. **Set up environment variables**
+3. **Configure environment variables**
    ```bash
    cp .env.example .env
-   # Edit .env with your configuration
+   # Edit .env with your PostgreSQL connection details
    ```
 
-4. **Set up the database**
+4. **Run database migrations**
    ```bash
-   # Create a PostgreSQL database
-   createdb llm_wrapper
-
-   # Run migrations
    poetry run alembic upgrade head
    ```
 
 5. **Run the service**
    ```bash
    poetry run python -m app.main
-   ```
-
-   Or with uvicorn directly:
-   ```bash
-   poetry run uvicorn app.main:app --reload
    ```
 
 ## API Endpoints
@@ -141,7 +132,7 @@ poetry run alembic revision --autogenerate -m "Description"
 # Apply migrations
 poetry run alembic upgrade head
 
-# Rollback
+# Rollback migrations
 poetry run alembic downgrade -1
 ```
 
