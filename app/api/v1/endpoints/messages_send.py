@@ -1,4 +1,3 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -16,12 +15,11 @@ router = APIRouter()
 async def send_message(
     chat_id: UUID,
     request: MessageSendRequest,
-    provider: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Send a message synchronously"""
     try:
-        return await MessageService.send_message(chat_id, request, db, provider)
+        return await MessageService.send_message(chat_id, request, db)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -32,13 +30,12 @@ async def send_message(
 async def stream_message(
     chat_id: UUID,
     request: MessageSendRequest,
-    provider: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Send a message and stream the response"""
     try:
         async def generate():
-            async for chunk in MessageService.stream_message(chat_id, request, db, provider):
+            async for chunk in MessageService.stream_message(chat_id, request, db):
                 # Format as Server-Sent Events
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
             yield "data: [DONE]\n\n"

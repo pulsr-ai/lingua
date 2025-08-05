@@ -40,7 +40,6 @@ class MessageSendRequest(BaseModel):
     provider_name: Optional[str] = None
     model: Optional[str] = None
     include_memories: bool = False
-    stream: bool = False
     # Tool selection (by default all available tools are included)
     enabled_functions: Optional[List[str]] = None  # List of function names to enable
     disabled_functions: Optional[List[str]] = None  # List of function names to disable

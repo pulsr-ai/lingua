@@ -157,12 +157,20 @@ async def test_direct_llm_call(client: AsyncClient, subtenant: dict):
     assert "Paris" in data["content"]
 
 @pytest.mark.asyncio
-async def test_stream_message_with_function_calls(client: AsyncClient, chat: dict, registered_functions: dict):
-    """Tests streaming messages with function calls."""
+async def test_streaming_endpoints(client: AsyncClient, chat: dict, registered_functions: dict):
+    """Tests both synchronous and streaming message endpoints."""
     chat_id = chat["id"]
     
-    # First test basic streaming without function calls
+    # Test 1: Synchronous endpoint without function calls
     message_data = {"content": "Say hello world"}
+    response = await client.post(f"/api/v1/chats/{chat_id}/messages", json=message_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"]["role"] == "assistant"
+    assert "hello" in data["message"]["content"].lower() or "world" in data["message"]["content"].lower()
+    
+    # Test 2: Streaming endpoint without function calls
+    message_data = {"content": "Say goodbye world"}
     
     # Use httpx streaming
     async with client.stream(
@@ -213,12 +221,22 @@ async def test_stream_message_with_function_calls(client: AsyncClient, chat: dic
         # Combine all content chunks
         full_content = "".join(content_chunks).lower()
         
-        # The response should contain hello or world
-        assert any(word in full_content for word in ["hello", "world"]), \
-            f"Expected 'hello' or 'world' in content, got: {full_content}"
+        # The response should contain goodbye or world
+        assert any(word in full_content for word in ["goodbye", "bye", "world"]), \
+            f"Expected 'goodbye' or 'world' in content, got: {full_content}"
     
-    # Now test function calls with streaming 
+    # Test 3: Synchronous endpoint with function calls
     message_data = {"content": "What time is it right now?"}
+    response = await client.post(f"/api/v1/chats/{chat_id}/messages", json=message_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"]["role"] == "assistant"
+    # The response should contain time-related information
+    content = data["message"]["content"].lower()
+    assert any(indicator in content for indicator in [":", "time", "now", "currently", "is"])
+    
+    # Test 4: Streaming endpoint with function calls
+    message_data = {"content": "What's the current time in ISO format?"}
     
     # Use httpx streaming for function call
     async with client.stream(
@@ -263,20 +281,53 @@ async def test_stream_message_with_function_calls(client: AsyncClient, chat: dic
                 except json.JSONDecodeError:
                     continue
         
-        # For now, streaming doesn't handle function calls properly, so we just verify we get a response
-        if content_chunks:
-            full_content = "".join(content_chunks).lower()
-            # Just verify we got some content back (might be "[get_current_time()]" which is okay for streaming)
-            assert len(full_content) > 0, f"Expected some content from streaming, got: {full_content}"
+        # Check if we got the tool execution separator
+        tool_execution_found = any("[Tool execution completed]" in chunk for chunk in content_chunks)
+        
+        # Combine all content chunks
+        full_content = "".join(content_chunks)
+        
+        # If tool execution was found, we should have time information after it
+        if tool_execution_found:
+            # Split by the tool execution marker
+            parts = full_content.split("[Tool execution completed]")
+            if len(parts) > 1:
+                final_response = parts[1].strip().lower()
+                # Should contain time-related information
+                assert any(indicator in final_response for indicator in [":", "time", "iso", "format"]), \
+                    f"Expected time information in final response, got: {final_response}"
+        else:
+            # Even without the separator, we should have some time-related content
+            assert any(indicator in full_content.lower() for indicator in ["time", ":", "current"]), \
+                f"Expected time-related content, got: {full_content}"
     
-    # Verify the messages were saved properly in the database
+    # Test 5: Verify message history contains all interactions
     response = await client.get(f"/api/v1/chats/{chat_id}/messages")
     assert response.status_code == 200
     messages = response.json()
     
-    # Should have: hello message + response + time message + response (streaming doesn't handle tool calls yet)
-    assert len(messages) >= 3, f"Expected at least 3 messages, got {len(messages)}: {[m['role'] for m in messages]}"
+    # Should have messages from all 4 tests above
+    # Each test adds at least 2 messages (user + assistant)
+    assert len(messages) >= 8, f"Expected at least 8 messages, got {len(messages)}: {[m['role'] for m in messages]}"
     
-    # The time request should have gotten some response, even if not through tool calling
-    time_messages = [m for m in messages if "time" in m.get("content", "").lower()]
-    assert len(time_messages) > 0, "Expected to find at least one message related to time" 
+    # Verify we have tool messages from the time requests
+    tool_messages = [m for m in messages if m["role"] == "tool"]
+    # At least one tool message should exist from the time requests
+    assert len(tool_messages) >= 1, f"Expected at least 1 tool message from time requests, got {len(tool_messages)}"
+    
+    # Verify the time requests resulted in proper responses
+    time_requests = [m for m in messages if "time" in m.get("content", "").lower() and m["role"] == "user"]
+    assert len(time_requests) >= 2, f"Expected at least 2 time-related user messages, got {len(time_requests)}"
+    
+    # Test 6: Test with provider_name in request body
+    message_data = {
+        "content": "Count from 1 to 3",
+        "provider_name": None  # Use default provider
+    }
+    response = await client.post(f"/api/v1/chats/{chat_id}/messages", json=message_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"]["role"] == "assistant"
+    # Should contain numbers 1, 2, 3
+    content = data["message"]["content"]
+    assert "1" in content and "2" in content and "3" in content 
