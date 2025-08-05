@@ -9,7 +9,6 @@ class MessageRole(str, Enum):
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
-    FUNCTION = "function"
     TOOL = "tool"  # For tool results
 
 
@@ -19,8 +18,8 @@ class MessageBase(BaseModel):
     tool_calls: Optional[List[Dict[str, Any]]] = None
     tool_call_id: Optional[str] = None  # For tool response messages
     name: Optional[str] = None
-    # Keep backwards compatibility
-    function_call: Optional[Dict[str, Any]] = None
+    enabled_functions: Optional[List[str]] = None  # Functions that were enabled for this message
+    enabled_mcp_tools: Optional[List[str]] = None  # MCP tools that were enabled for this message
 
 
 class MessageCreate(MessageBase):
@@ -38,12 +37,16 @@ class Message(MessageBase):
 
 class MessageSendRequest(BaseModel):
     content: str
+    provider_name: Optional[str] = None
+    model: Optional[str] = None
     include_memories: bool = False
     stream: bool = False
-    tools: Optional[List[Dict[str, Any]]] = None
+    # Tool selection (by default all available tools are included)
+    enabled_functions: Optional[List[str]] = None  # List of function names to enable
+    disabled_functions: Optional[List[str]] = None  # List of function names to disable
+    enabled_mcp_tools: Optional[List[str]] = None  # List of MCP tool names to enable
+    disabled_mcp_tools: Optional[List[str]] = None  # List of MCP tool names to disable
     tool_choice: Optional[str] = None
-    # Keep backwards compatibility
-    functions: Optional[List[Dict[str, Any]]] = None
 
 
 class MessageSendResponse(BaseModel):

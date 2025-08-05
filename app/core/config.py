@@ -15,12 +15,14 @@ class Settings(BaseSettings):
     redis_url: Optional[str] = Field(None, env="REDIS_URL")
     
     openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY")
+    openai_api_base_url: Optional[str] = Field(None, env="OPENAI_API_BASE_URL")
     anthropic_api_key: Optional[str] = Field(None, env="ANTHROPIC_API_KEY")
     local_llm_endpoint: Optional[str] = Field(None, env="LOCAL_LLM_ENDPOINT")
     private_cloud_endpoint: Optional[str] = Field(None, env="PRIVATE_CLOUD_ENDPOINT")
     private_cloud_api_key: Optional[str] = Field(None, env="PRIVATE_CLOUD_API_KEY")
     
     default_llm_provider: str = Field("openai", env="DEFAULT_LLM_PROVIDER")
+    default_model: Optional[str] = None
     
     host: str = Field("0.0.0.0", env="HOST")
     port: int = Field(8000, env="PORT")

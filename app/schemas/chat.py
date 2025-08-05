@@ -8,6 +8,9 @@ from app.schemas.message import Message
 
 class ChatBase(BaseModel):
     title: Optional[str] = None
+    system_message: Optional[str] = None
+    enabled_functions: Optional[List[str]] = None  # Default enabled function names
+    enabled_mcp_tools: Optional[List[str]] = None  # Default enabled MCP tool names
 
 
 class ChatCreate(ChatBase):
@@ -23,6 +26,7 @@ class Chat(ChatBase):
     subtenant_id: UUID
     created_at: datetime
     updated_at: datetime
+    system_message: Optional[str] = None
     
     class Config:
         from_attributes = True

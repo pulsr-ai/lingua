@@ -11,15 +11,13 @@ class ToolCall(BaseModel):
 
 class LLMRequest(BaseModel):
     messages: List[Dict[str, Any]]
+    provider_name: Optional[str] = None
     model: Optional[str] = None
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = None
     stream: bool = False
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[str | Dict[str, Any]] = None
-    # Keep backwards compatibility
-    functions: Optional[List[Dict[str, Any]]] = None
-    function_call: Optional[str | Dict[str, Any]] = None
 
 
 class LLMResponse(BaseModel):
@@ -29,5 +27,3 @@ class LLMResponse(BaseModel):
     usage: Optional[Dict[str, int]] = None
     model: str
     provider: str
-    # Keep backwards compatibility
-    function_call: Optional[Dict[str, Any]] = None

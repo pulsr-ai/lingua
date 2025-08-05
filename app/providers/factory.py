@@ -20,9 +20,10 @@ class LLMProviderFactory:
         
         if provider_name == "openai":
             api_key = kwargs.get("api_key") or settings.openai_api_key
+            base_url = kwargs.get("base_url") or settings.openai_api_base_url
             if not api_key:
                 raise ValueError("OpenAI API key not provided")
-            return OpenAIProvider(api_key=api_key, **kwargs)
+            return OpenAIProvider(api_key=api_key, base_url=base_url, **kwargs)
         
         elif provider_name == "anthropic":
             api_key = kwargs.get("api_key") or settings.anthropic_api_key

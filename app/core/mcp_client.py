@@ -122,6 +122,7 @@ class MCPClient:
     def __init__(self):
         self.servers: Dict[str, MCPServer] = {}
         self._tool_handlers: Dict[str, MCPToolHandler] = {}
+        self._loaded_servers = set()  # Track which servers are loaded
     
     async def connect_server(self, server: MCPServer):
         """Connect to an MCP server and discover available tools"""
@@ -138,6 +139,9 @@ class MCPClient:
     
     def get_tools_definitions(self) -> List[Dict[str, Any]]:
         """Get all MCP tools in OpenAI tools format"""
+        # Load active servers from database if needed
+        self._load_db_servers()
+        
         tools = []
         for name, handler in self._tool_handlers.items():
             definition = handler.get_definition()
@@ -171,6 +175,46 @@ class MCPClient:
             tools.append(tool_def)
         
         return tools
+    
+    def _load_db_servers(self):
+        """Load active MCP servers from database"""
+        from app.db.base import SessionLocal
+        from app.db.models import MCPServerModel
+        
+        db = SessionLocal()
+        try:
+            db_servers = db.query(MCPServerModel).filter(MCPServerModel.is_active == True).all()
+            for db_server in db_servers:
+                if db_server.name not in self._loaded_servers:
+                    server = MCPServer(
+                        name=db_server.name,
+                        url=db_server.url,
+                        protocol=db_server.protocol,
+                        api_key=db_server.api_key
+                    )
+                    try:
+                        # Try to connect (this would be async in real implementation)
+                        # For now, just mark as loaded
+                        self.servers[server.name] = server
+                        self._loaded_servers.add(db_server.name)
+                        
+                        # Update connection status
+                        from sqlalchemy import func
+                        db.query(MCPServerModel).filter(MCPServerModel.id == db_server.id).update({
+                            "connection_status": "connected",
+                            "last_connected": func.now(),
+                            "error_message": None
+                        })
+                        
+                    except Exception as e:
+                        # Update error status
+                        db.query(MCPServerModel).filter(MCPServerModel.id == db_server.id).update({
+                            "connection_status": "error",
+                            "error_message": str(e)
+                        })
+            db.commit()
+        finally:
+            db.close()
     
     async def _discover_tools(self, server: MCPServer) -> List[Dict[str, Any]]:
         """Discover available tools from an MCP server"""

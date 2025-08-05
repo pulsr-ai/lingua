@@ -94,9 +94,14 @@ A Python service that wraps various LLM providers (OpenAI, Anthropic, local, pri
 ### MCP (Model Context Protocol)
 - `POST /api/v1/mcp/servers` - Connect to an MCP server
 - `GET /api/v1/mcp/servers` - List connected MCP servers
-- `DELETE /api/v1/mcp/servers/{name}` - Disconnect from MCP server
+- `PUT /api/v1/mcp/servers/{id}` - Update MCP server config
+- `DELETE /api/v1/mcp/servers/{id}` - Disconnect from MCP server
 - `GET /api/v1/mcp/tools` - List available MCP tools
 - `POST /api/v1/mcp/tools/{name}/execute` - Execute an MCP tool
+
+### Tools
+- `GET /api/v1/tools/available` - List all available functions and MCP tools
+- `GET /api/v1/tools/names` - List tool names for easy reference
 
 ## Configuration
 
@@ -201,39 +206,47 @@ server_config = {
 
 ### Using Tools in Chat
 
-When sending messages, tools are automatically available to the LLM:
+By default, all registered functions and MCP tools are available to the LLM. You can selectively enable/disable tools per message:
 
 ```python
-# New tools format (recommended)
+# Use all available tools (default behavior)
 message = {
     "content": "What time is it and what's 15 * 23?",
-    "include_memories": False,
-    "tools": [
-        {
-            "type": "function",
-            "function": {
-                "name": "custom_function",
-                "description": "A custom function",
-                "parameters": {...}
-            }
-        }
-    ]
+    "include_memories": False
 }
 
-# Legacy functions format (still supported)
+# Only enable specific functions
 message = {
-    "content": "What time is it and what's 15 * 23?",
-    "include_memories": False,
-    "functions": [
-        {
-            "name": "custom_function",
-            "description": "A custom function",
-            "parameters": {...}
-        }
-    ]
+    "content": "What time is it?",
+    "enabled_functions": ["get_current_time"],
+    "disabled_mcp_tools": ["all"]  # Disable all MCP tools
 }
 
-# The LLM will automatically call available tools/functions
+# Disable specific tools
+message = {
+    "content": "Help me with calculations",
+    "disabled_functions": ["risky_function"],
+    "disabled_mcp_tools": ["dangerous_tool"]
+}
+
+# Enable only specific MCP tools
+message = {
+    "content": "Read this file",
+    "enabled_mcp_tools": ["my_server_file_read"],
+    "disabled_functions": ["all"]  # Disable all functions
+}
+```
+
+### Available Tools
+
+Get a list of all available tools:
+
+```bash
+# Get detailed tool information
+GET /api/v1/tools/available
+
+# Get just the tool names for easy reference
+GET /api/v1/tools/names
 ```
 
 See `examples/function_calling_example.py` for a complete example.

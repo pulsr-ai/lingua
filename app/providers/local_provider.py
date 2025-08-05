@@ -47,7 +47,6 @@ class LocalProvider(BaseLLMProvider):
         return LLMResponse(
             content=data.get("message", {}).get("content", ""),
             role="assistant",
-            function_call=None,
             usage={
                 "prompt_tokens": data.get("prompt_eval_count", 0),
                 "completion_tokens": data.get("eval_count", 0),
@@ -109,7 +108,6 @@ class LocalProvider(BaseLLMProvider):
         return LLMResponse(
             content=data.get("message", {}).get("content", ""),
             role="assistant",
-            function_call=None,
             usage={
                 "prompt_tokens": data.get("prompt_eval_count", 0),
                 "completion_tokens": data.get("eval_count", 0),

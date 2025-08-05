@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.db.base import get_db
-from app.db.models import Chat as ChatModel, Subtenant as SubtenantModel
+from app.db.models import Chat as ChatModel, Subtenant as SubtenantModel, Message as MessageModel
 from app.schemas.chat import Chat, ChatCreate, ChatUpdate, ChatWithMessages
 
 router = APIRouter()
@@ -26,6 +26,16 @@ def create_chat(
         title=chat.title
     )
     db.add(db_chat)
+    db.flush()  # Flush to get the ID for the message
+
+    if chat.system_message:
+        system_message = MessageModel(
+            chat_id=db_chat.id,
+            role="system",
+            content=chat.system_message
+        )
+        db.add(system_message)
+
     db.commit()
     db.refresh(db_chat)
     return db_chat

@@ -39,6 +39,7 @@ class FunctionRegistry:
     def __init__(self):
         self._functions: Dict[str, BaseFunctionHandler] = {}
         self._definitions: Dict[str, Dict[str, Any]] = {}
+        self._db_functions: Dict[str, BaseFunctionHandler] = {}  # Database stored functions
     
     def register(self, handler: BaseFunctionHandler):
         """Register a function handler"""
@@ -81,11 +82,36 @@ class FunctionRegistry:
     
     def get_function(self, name: str) -> Optional[BaseFunctionHandler]:
         """Get a function handler by name"""
-        return self._functions.get(name)
+        # Check built-in functions first
+        if name in self._functions:
+            return self._functions[name]
+        # Then check database functions
+        return self._db_functions.get(name)
     
     def get_definitions(self) -> List[Dict[str, Any]]:
         """Get all function definitions in OpenAI tools format"""
-        return list(self._definitions.values())
+        all_definitions = list(self._definitions.values())
+        # Add database function definitions
+        from app.db.base import SessionLocal
+        from app.db.models import RegisteredFunction
+        
+        db = SessionLocal()
+        try:
+            db_functions = db.query(RegisteredFunction).filter(RegisteredFunction.is_active == True).all()
+            for func in db_functions:
+                tool_def = {
+                    "type": "function",
+                    "function": {
+                        "name": func.name,
+                        "description": func.description,
+                        "parameters": func.parameters
+                    }
+                }
+                all_definitions.append(tool_def)
+        finally:
+            db.close()
+        
+        return all_definitions
     
     def get_functions_format(self) -> List[Dict[str, Any]]:
         """Get all function definitions in legacy OpenAI functions format"""
@@ -103,9 +129,61 @@ class FunctionRegistry:
         """Execute a function by name with arguments"""
         handler = self.get_function(name)
         if not handler:
-            raise ValueError(f"Function '{name}' not found")
+            # Try to load from database
+            await self._load_db_function(name)
+            handler = self.get_function(name)
+            if not handler:
+                raise ValueError(f"Function '{name}' not found")
         
         return await handler.execute(**arguments)
+    
+    async def _load_db_function(self, name: str):
+        """Load a function from database"""
+        from app.db.base import SessionLocal
+        from app.db.models import RegisteredFunction
+        
+        db = SessionLocal()
+        try:
+            func = db.query(RegisteredFunction).filter(
+                RegisteredFunction.name == name,
+                RegisteredFunction.is_active == True
+            ).first()
+            
+            if func:
+                # Create function handler from database record
+                namespace = {}
+                exec(func.code, namespace)
+                
+                # Find the function in the namespace
+                python_func = None
+                for obj_name, obj in namespace.items():
+                    if callable(obj) and not obj_name.startswith('_'):
+                        python_func = obj
+                        break
+                
+                if python_func:
+                    # Convert parameters back to FunctionParameter objects
+                    parameters = []
+                    if func.parameters.get("properties"):
+                        for param_name, param_def in func.parameters["properties"].items():
+                            param = FunctionParameter(
+                                name=param_name,
+                                type=param_def.get("type", "string"),
+                                description=param_def.get("description", ""),
+                                required=param_name in func.parameters.get("required", []),
+                                enum=param_def.get("enum")
+                            )
+                            parameters.append(param)
+                    
+                    handler = create_function_handler(python_func, func.name, func.description, parameters)
+                    self._db_functions[name] = handler
+        finally:
+            db.close()
+    
+    def reload_db_functions(self):
+        """Reload all database functions"""
+        self._db_functions.clear()
+        # Functions will be loaded on-demand
 
 
 # Global function registry
@@ -131,57 +209,3 @@ def create_function_handler(func: Callable, name: str, description: str,
             )
     
     return DynamicFunctionHandler()
-
-
-# Example built-in functions
-class GetCurrentTimeFunction(BaseFunctionHandler):
-    async def execute(self, **kwargs) -> str:
-        from datetime import datetime
-        format = kwargs.get("format", "%Y-%m-%d %H:%M:%S")
-        return datetime.now().strftime(format)
-    
-    def get_definition(self) -> FunctionDefinition:
-        return FunctionDefinition(
-            name="get_current_time",
-            description="Get the current date and time",
-            parameters=[
-                FunctionParameter(
-                    name="format",
-                    type="string",
-                    description="The format string for the date/time (default: %Y-%m-%d %H:%M:%S)",
-                    required=False
-                )
-            ]
-        )
-
-
-class CalculatorFunction(BaseFunctionHandler):
-    async def execute(self, expression: str) -> float:
-        # Simple safe evaluation for basic math
-        allowed_chars = "0123456789+-*/()., "
-        if not all(c in allowed_chars for c in expression):
-            raise ValueError("Invalid characters in expression")
-        
-        try:
-            result = eval(expression)
-            return float(result)
-        except Exception as e:
-            raise ValueError(f"Failed to evaluate expression: {str(e)}")
-    
-    def get_definition(self) -> FunctionDefinition:
-        return FunctionDefinition(
-            name="calculator",
-            description="Perform basic mathematical calculations",
-            parameters=[
-                FunctionParameter(
-                    name="expression",
-                    type="string",
-                    description="The mathematical expression to evaluate (e.g., '2 + 2 * 3')"
-                )
-            ]
-        )
-
-
-# Register built-in functions
-function_registry.register(GetCurrentTimeFunction())
-function_registry.register(CalculatorFunction())
