@@ -15,7 +15,7 @@ jobs:
     - name: Generate poetry.lock
       run: |
         pip install poetry
-        poetry lock --no-update
+        poetry lock
     - name: Login to Scaleway Container Registry
       uses: docker/login-action@v3
       with:
