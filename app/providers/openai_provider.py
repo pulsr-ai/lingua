@@ -1,4 +1,5 @@
 import logging
+import json
 from typing import Dict, Any, Optional, Generator, AsyncGenerator
 import openai
 from openai import OpenAI, AsyncOpenAI
@@ -184,6 +185,42 @@ class OpenAIProvider(BaseLLMProvider):
         
         stream = await self.async_client.chat.completions.create(**kwargs)
         
+        tool_calls = {}  # Track tool calls across chunks
+        
         async for chunk in stream:
-            if chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+            delta = chunk.choices[0].delta
+            
+            # Handle content
+            if delta.content:
+                yield delta.content
+            
+            # Handle tool calls in streaming
+            if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                for tool_call_chunk in delta.tool_calls:
+                    index = tool_call_chunk.index
+                    
+                    if index not in tool_calls:
+                        tool_calls[index] = {
+                            "id": "",
+                            "type": "function",
+                            "function": {
+                                "name": "",
+                                "arguments": ""
+                            }
+                        }
+                    
+                    # Update tool call data
+                    if tool_call_chunk.id:
+                        tool_calls[index]["id"] = tool_call_chunk.id
+                    
+                    if tool_call_chunk.function:
+                        if tool_call_chunk.function.name:
+                            tool_calls[index]["function"]["name"] = tool_call_chunk.function.name
+                        if tool_call_chunk.function.arguments:
+                            tool_calls[index]["function"]["arguments"] += tool_call_chunk.function.arguments
+        
+        # If we collected tool calls, yield them at the end
+        if tool_calls:
+            yield json.dumps({
+                "tool_calls": list(tool_calls.values())
+            })

@@ -29,7 +29,7 @@ async def send_message(
 
 
 @router.post("/chats/{chat_id}/messages/stream")
-def stream_message(
+async def stream_message(
     chat_id: UUID,
     request: MessageSendRequest,
     provider: Optional[str] = None,
@@ -37,8 +37,8 @@ def stream_message(
 ):
     """Send a message and stream the response"""
     try:
-        def generate():
-            for chunk in MessageService.stream_message(chat_id, request, db, provider):
+        async def generate():
+            async for chunk in MessageService.stream_message(chat_id, request, db, provider):
                 # Format as Server-Sent Events
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
             yield "data: [DONE]\n\n"
