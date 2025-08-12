@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -24,8 +24,8 @@ def create_subtenant(
 
 @router.get("/", response_model=List[Subtenant])
 def list_subtenants(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(default=0, ge=0, description="Number of items to skip for pagination"),
+    limit: int = Query(default=100, ge=1, le=1000, description="Maximum number of items to return"),
     db: Session = Depends(get_db)
 ):
     subtenants = db.query(SubtenantModel).offset(skip).limit(limit).all()

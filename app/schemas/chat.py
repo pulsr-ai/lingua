@@ -14,16 +14,17 @@ class ChatBase(BaseModel):
 
 
 class ChatCreate(ChatBase):
-    pass
+    assistant_id: Optional[UUID] = None  # Set at creation, cannot be changed
 
 
-class ChatUpdate(ChatBase):
+class ChatUpdate(BaseModel):
     title: Optional[str] = None
 
 
 class Chat(ChatBase):
     id: UUID
     subtenant_id: UUID
+    assistant_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
     system_message: Optional[str] = None

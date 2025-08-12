@@ -85,7 +85,7 @@ class MessageService:
     
     @staticmethod
     def _prepare_tools(request: MessageSendRequest, chat: ChatModel) -> tuple[List[Dict[str, Any]], List[str], List[str]]:
-        """Prepare available tools based on chat defaults and request overrides.
+        """Prepare available tools based on assistant defaults, chat defaults and request overrides.
         Returns: (tools, enabled_functions, enabled_mcp_tools)
         """
         tools = []
@@ -94,7 +94,7 @@ class MessageService:
         all_function_tools = function_registry.get_definitions()
         
         # Determine which functions to enable
-        # Priority: request overrides > chat defaults > all functions
+        # Priority: request overrides > chat defaults > assistant defaults > all functions
         enabled_functions = None
         if request.enabled_functions is not None:
             # Request explicitly specifies which functions to enable
@@ -102,6 +102,9 @@ class MessageService:
         elif chat.enabled_functions is not None:
             # Use chat's default enabled functions
             enabled_functions = chat.enabled_functions
+        elif chat.assistant and chat.assistant.enabled_functions is not None:
+            # Use assistant's default enabled functions
+            enabled_functions = chat.assistant.enabled_functions
         
         # Filter registered functions
         if enabled_functions is not None:
@@ -127,7 +130,7 @@ class MessageService:
         all_mcp_tools = mcp_client.get_tools_definitions()
         
         # Determine which MCP tools to enable
-        # Priority: request overrides > chat defaults > all MCP tools
+        # Priority: request overrides > chat defaults > assistant defaults > all MCP tools
         enabled_mcp_tools = None
         if request.enabled_mcp_tools is not None:
             # Request explicitly specifies which MCP tools to enable
@@ -135,6 +138,9 @@ class MessageService:
         elif chat.enabled_mcp_tools is not None:
             # Use chat's default enabled MCP tools
             enabled_mcp_tools = chat.enabled_mcp_tools
+        elif chat.assistant and chat.assistant.enabled_mcp_tools is not None:
+            # Use assistant's default enabled MCP tools
+            enabled_mcp_tools = chat.assistant.enabled_mcp_tools
         
         # Filter MCP tools
         if enabled_mcp_tools is not None:
@@ -210,8 +216,9 @@ class MessageService:
         """
         logger.info(f"Processing message for chat {chat_id}, streaming: {stream}")
         
-        # Get chat and verify it exists
-        chat = db.query(ChatModel).filter(ChatModel.id == chat_id).first()
+        # Get chat with assistant relationship and verify it exists
+        from sqlalchemy.orm import joinedload
+        chat = db.query(ChatModel).options(joinedload(ChatModel.assistant)).filter(ChatModel.id == chat_id).first()
         if not chat:
             raise HTTPException(status_code=404, detail="Chat not found")
         

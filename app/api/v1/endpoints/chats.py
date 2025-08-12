@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.db.base import get_db
-from app.db.models import Chat as ChatModel, Subtenant as SubtenantModel, Message as MessageModel
+from app.db.models import Chat as ChatModel, Subtenant as SubtenantModel, Message as MessageModel, Assistant as AssistantModel
 from app.schemas.chat import Chat, ChatCreate, ChatUpdate, ChatWithMessages
 
 router = APIRouter()
@@ -21,18 +21,46 @@ def create_chat(
     if not subtenant:
         raise HTTPException(status_code=404, detail="Subtenant not found")
     
+    # If assistant_id is provided, verify it exists and is accessible
+    assistant = None
+    if chat.assistant_id:
+        assistant = db.query(AssistantModel).filter(
+            AssistantModel.id == chat.assistant_id,
+            AssistantModel.is_active == True
+        ).first()
+        if not assistant:
+            raise HTTPException(status_code=404, detail="Assistant not found")
+        
+        # Check if assistant is accessible (workspace-wide or belongs to this subtenant)
+        if assistant.subtenant_id and assistant.subtenant_id != subtenant_id:
+            raise HTTPException(status_code=403, detail="Assistant not accessible for this subtenant")
+    
+    # Create the chat with assistant settings
     db_chat = ChatModel(
         subtenant_id=subtenant_id,
-        title=chat.title
+        assistant_id=chat.assistant_id,
+        title=chat.title,
+        enabled_functions=chat.enabled_functions,
+        enabled_mcp_tools=chat.enabled_mcp_tools
     )
+    
+    # If assistant is provided, apply its presets to the chat (if not overridden)
+    if assistant:
+        if not chat.enabled_functions and assistant.enabled_functions:
+            db_chat.enabled_functions = assistant.enabled_functions
+        if not chat.enabled_mcp_tools and assistant.enabled_mcp_tools:
+            db_chat.enabled_mcp_tools = assistant.enabled_mcp_tools
+    
     db.add(db_chat)
     db.flush()  # Flush to get the ID for the message
 
-    if chat.system_message:
+    # Add system message if provided by chat or assistant
+    system_content = chat.system_message or (assistant.system_prompt if assistant else None)
+    if system_content:
         system_message = MessageModel(
             chat_id=db_chat.id,
             role="system",
-            content=chat.system_message
+            content=system_content
         )
         db.add(system_message)
 

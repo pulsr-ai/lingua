@@ -9,7 +9,8 @@ from app.api.v1.endpoints import (
     llm,
     functions,
     mcp,
-    tools
+    tools,
+    assistants
 )
 
 api_router = APIRouter()
@@ -23,3 +24,4 @@ api_router.include_router(llm.router, tags=["llm"])
 api_router.include_router(functions.router, tags=["functions"])
 api_router.include_router(mcp.router, tags=["mcp"])
 api_router.include_router(tools.router, tags=["tools"])
+api_router.include_router(assistants.router, tags=["assistants"])

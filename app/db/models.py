@@ -22,6 +22,7 @@ class Chat(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     subtenant_id = Column(UUID(as_uuid=True), ForeignKey("subtenants.id"), nullable=False)
+    assistant_id = Column(UUID(as_uuid=True), ForeignKey("assistants.id"), nullable=True)
     title = Column(String(255))
     # Default tool configuration for this chat (for Custom GPTs functionality)
     enabled_functions = Column(JSON)  # List of function names enabled by default
@@ -30,6 +31,7 @@ class Chat(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     subtenant = relationship("Subtenant", back_populates="chats")
+    assistant = relationship("Assistant", back_populates="chats")
     messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan", order_by="Message.created_at")
 
 
@@ -99,6 +101,27 @@ class RegisteredFunction(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class Assistant(Base):
+    __tablename__ = "assistants"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    subtenant_id = Column(UUID(as_uuid=True), ForeignKey("subtenants.id"), nullable=True)  # NULL means workspace-wide
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    system_prompt = Column(Text, nullable=True)
+    enabled_functions = Column(JSON, nullable=True)  # List of function names enabled by default
+    enabled_mcp_tools = Column(JSON, nullable=True)  # List of MCP tool names enabled by default
+    # Optional parameters for tools (e.g., specific settings for each tool)
+    function_parameters = Column(JSON, nullable=True)  # Dict mapping function names to default parameters
+    mcp_tool_parameters = Column(JSON, nullable=True)  # Dict mapping MCP tool names to default parameters
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    subtenant = relationship("Subtenant", backref="assistants")
+    chats = relationship("Chat", back_populates="assistant")
 
 
 class MCPServerModel(Base):

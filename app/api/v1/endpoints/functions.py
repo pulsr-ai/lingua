@@ -25,9 +25,9 @@ def list_functions():
     definitions = function_registry.get_definitions()
     return [
         FunctionDefinitionResponse(
-            name=def_dict["name"],
-            description=def_dict["description"],
-            parameters=def_dict["parameters"]
+            name=def_dict["function"]["name"],
+            description=def_dict["function"]["description"],
+            parameters=def_dict["function"]["parameters"]
         )
         for def_dict in definitions
     ]
@@ -49,6 +49,11 @@ async def execute_function(name: str, request: ExecuteFunctionRequest):
 def register_function(request: RegisterFunctionRequest, db: Session = Depends(get_db)):
     """Register a new function dynamically"""
     try:
+        # Check if function already exists
+        existing = db.query(RegisteredFunction).filter(RegisteredFunction.name == request.name).first()
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Function '{request.name}' already exists")
+        
         # Test the code by executing it
         namespace = {}
         exec(request.code, namespace)
@@ -98,7 +103,10 @@ def register_function(request: RegisterFunctionRequest, db: Session = Depends(ge
         
         return db_function
     
+    except HTTPException:
+        raise
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -205,10 +213,19 @@ def delete_registered_function(function_id: UUID, db: Session = Depends(get_db))
 
 
 @router.delete("/functions/{name}")
-def unregister_function(name: str):
-    """Unregister a built-in function (not database functions)"""
+def unregister_function(name: str, db: Session = Depends(get_db)):
+    """Unregister a function (built-in or database)"""
     try:
+        # Try to delete from database first
+        db_function = db.query(RegisteredFunction).filter(RegisteredFunction.name == name).first()
+        if db_function:
+            db.delete(db_function)
+            db.commit()
+            function_registry.reload_db_functions()
+            return {"message": f"Function '{name}' deleted from database successfully"}
+        
+        # Try to unregister from built-in registry
         function_registry.unregister(name)
-        return {"message": f"Function '{name}' unregistered successfully"}
+        return {"message": f"Function '{name}' unregistered from registry successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=404, detail=f"Function '{name}' not found")
