@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    logger.info("Starting LLM Wrapper Service...")
+    logger.info("Starting Lingua LLM Assistant Service...")
     
     # Check database connection
     if not check_database_connection():
@@ -25,10 +25,10 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    logger.info("Shutting down LLM Wrapper Service...")
+    logger.info("Shutting down LLingua...")
 
 app = FastAPI(
-    title="LLM Wrapper Service",
+    title="Lingua LLM Assistant Service",
     description="A unified API wrapper for various LLM providers",
     version="0.1.0",
     lifespan=lifespan
